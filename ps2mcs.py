@@ -10,7 +10,7 @@ from pathlib import Path
 
 from mapping.flat import FlatMappingStrategy
 
-VERSION = "0.0.1"
+VERSION = "0.1.0"
 MCPD2_PS2_ROOT = "files/PS2"
 
 class MissingCredentialError(Exception):
@@ -28,25 +28,27 @@ def main():
         args = read_args()
         local_root = Path(args.local).resolve()
 
-        print(f'{args.target}')
-
         target_path = Path(MCPD2_PS2_ROOT) / Path(args.target)
-        extract_target_components(target_path)
+        validate_remote_path(target_path)
 
-        # Get creds
         (uname, pwd) = read_creds()
         print(f'{uname},{pwd}')
-
+        
         # Get file mapping strategy
         ms = create_mapping_strategy()
+
         local_path = local_root / Path(ms.map_remote_to_local(target_path))
-        # Check path to file locally exists, create if not
-        local_path.parent.mkdir(parents=True, exist_ok=True)
         print(f'{target_path} ---> {local_path}')
 
         ftp = create_ftp_connection(args.ftp_host, uname, pwd)
-        # print(get_remote_modified_time(ftp, args.target))
-        sync_file_down(ftp, local_path, target_path)
+
+        if args.direction == 'down':
+            # Check path to file locally exists, create if not
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+        
+            sync_file_down(ftp, local_path, target_path)
+        else:
+            sync_file_up(ftp, local_path, target_path)
 
     except Exception as e:
         print(f'Failed to sync: {e}')
@@ -57,70 +59,72 @@ def main():
 def sync_file_down(ftp, local_path, remote_path):
     try:
         # Get remote file's modified time
-        remote_modified_time = get_remote_modified_time(ftp, remote_path)
-        print(f"Remote file '{remote_path}' last modified: {remote_modified_time}")
+        rmt = get_remote_modified_time(ftp, remote_path)
 
         # Check if local file exists
         if os.path.exists(local_path):
-            local_modified_time = datetime.fromtimestamp(os.path.getmtime(local_path))
-            print(f"Local file '{local_path}' last modified: {local_modified_time}")
+            lmt = int(os.path.getmtime(local_path))
 
             # Compare times and decide action
-            if remote_modified_time > local_modified_time:
-                print(f"Downloading newer file: {remote_path}")
-                with open(local_path, 'wb') as f:
-                    ftp.retrbinary(f"RETR {remote_path}", f.write)
-
-                # Update local timestamp so it reflects the remote time
-                rmt = int(remote_modified_time.timestamp())
-                os.utime(local_path, (rmt, rmt))
-            elif local_modified_time > remote_modified_time:
+            if rmt > lmt:
+                sync_remote_file_to_local(ftp, remote_path, local_path, rmt)
+            elif lmt > rmt:
                 print(f'LOCAL IS NEWER - WHAT NOW?')
-            #     print(f"Uploading newer file: {local_path}")
-            #     with open(local_path, 'rb') as f:
-            #         ftp.storbinary(f"STOR {remote_path}", f)
-
-            #     set_remote_file_timestamp(ftp, remote_path, local_modified_time)
             else:
-                print(f"File '{remote_path}' is already up-to-date.")
+                print(f'{local_path} is already up-to-date')
         else:
             # Local file doesn't exist, download from server
-            print(f"Local file '{local_path}' does not exist. Downloading...")
-            with open(local_path, 'wb') as f:
-                ftp.retrbinary(f"RETR {remote_path}", f.write)
-
-            # Update local timestamp so it reflects the remote time
-            rmt = int(remote_modified_time.timestamp())
-            os.utime(local_path, (rmt, rmt))
+            sync_remote_file_to_local(ftp, remote_path, local_path, rmt)
     except Exception as e:
-        print(f"Error syncing file '{remote_path}': {e}")
+        print(f'Error syncing file {remote_path}: {e}')
 
+def sync_file_up(ftp, local_path, remote_path):
+    try:
+        if not os.path.exists(local_path):
+            raise FileNotFoundError(f'{local_path} does not exist. Sync it down, first')
 
-def extract_target_components(target_path):
+        # Get remote file's modified time
+        rmt = get_remote_modified_time(ftp, remote_path)
+        lmt = int(os.path.getmtime(local_path))
+
+        # Compare times and decide action
+        if lmt > rmt:
+            sync_local_file_to_remote(ftp, local_path, remote_path)
+        elif rmt > lmt:
+            print(f'Remote file is newer')
+        else:
+            print(f'{remote_path} is already up-to-date')
+    except Exception as e:
+        print(f'Error syncing file {remote_path}: {e}')
+
+def sync_local_file_to_remote(ftp, local_path, remote_path):
+    with open(local_path, 'rb') as f:
+        ftp.storbinary(f'STOR {remote_path}', f)
+
+    # Can't update the time on the MCP2 ... it doesn't support the MFMT command
+
+def sync_remote_file_to_local(ftp, remote_path, local_path, rmt):
+    with open(local_path, 'wb') as f:
+        ftp.retrbinary(f'RETR {remote_path}', f.write)
+
+    # Update local timestamp so it reflects the remote time
+    os.utime(local_path, (rmt, rmt))
+
+def validate_remote_path(target_path):
     pattern = fr'^{MCPD2_PS2_ROOT}/([^/]+)/([^/]+)-([1-8])\.mc2$'
 
     match = re.match(pattern, str(target_path))
 
-    if match:
-        vmc_dir = match.group(1)
-        vmc_file = match.group(2)
-        vmc_channel = match.group(3)
-
-        print(f"VMC Dir: {vmc_dir}")
-        print(f"VMC File: {vmc_file}")
-        print(f"VMC Channel: {vmc_channel}")
-
-        return (vmc_dir, vmc_file, vmc_channel)
-    else:
+    if match is None:
         raise InvalidTargetFormatError()
 
 def get_remote_modified_time(ftp, filename):
     response = ftp.sendcmd(f"MDTM {filename}") # '213 YYYYMMDDHHMMSS'
     remote_time_str = response[4:]
-    return parse_ftp_time(remote_time_str)
+    return ftp_time_to_unix_timestamp(remote_time_str)
 
-def parse_ftp_time(ftp_time_str):
-    return datetime.strptime(ftp_time_str, '%Y%m%d%H%M%S')
+def ftp_time_to_unix_timestamp(ftp_time_str):
+    return int(datetime.strptime(ftp_time_str, '%Y%m%d%H%M%S').timestamp())
 
 def create_ftp_connection(ftp_host, uname, pwd):
     ftp = FTP(ftp_host)
