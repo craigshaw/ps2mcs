@@ -6,7 +6,5 @@ class FlatMappingStrategy():
         pass
     
     def map_remote_to_local(self, remote_path):
-        path = Path(remote_path)
-
-        # Replace the extension with '.bin'
-        return path.with_suffix('.bin').name
+        # Flatten to <mem card dir>_<mem_car_name>.bin
+        return f'{remote_path.parts[len(remote_path.parts)-2]}_{remote_path.stem}.bin'
