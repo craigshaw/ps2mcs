@@ -10,7 +10,7 @@ from pathlib import Path
 
 from mapping.flat import FlatMappingStrategy
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 MCPD2_PS2_ROOT = "files/PS2"
 
 class MissingCredentialError(Exception):
@@ -32,7 +32,6 @@ def main():
         validate_remote_path(target_path)
 
         (uname, pwd) = read_creds()
-        print(f'{uname},{pwd}')
         
         # Get file mapping strategy
         ms = create_mapping_strategy()
@@ -42,21 +41,17 @@ def main():
 
         ftp = create_ftp_connection(args.ftp_host, uname, pwd)
 
-        if args.direction == 'down':
-            # Check path to file locally exists, create if not
-            local_path.parent.mkdir(parents=True, exist_ok=True)
-        
-            sync_file_down(ftp, local_path, target_path)
-        else:
-            sync_file_up(ftp, local_path, target_path)
+        # Check path to file locally exists, create if not
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+    
+        sync_file(ftp, local_path, target_path)
 
     except Exception as e:
         print(f'Failed to sync: {e}')
 
     print(f'Done')
 
-# TODO - Not sure how to incorporate direction yet - interleaved or strategy ... not sure
-def sync_file_down(ftp, local_path, remote_path):
+def sync_file(ftp, local_path, remote_path):
     try:
         # Get remote file's modified time
         rmt = get_remote_modified_time(ftp, remote_path)
@@ -67,33 +62,17 @@ def sync_file_down(ftp, local_path, remote_path):
 
             # Compare times and decide action
             if rmt > lmt:
+                print(f'Remote file is newer. Updating {local_path}')
                 sync_remote_file_to_local(ftp, remote_path, local_path, rmt)
             elif lmt > rmt:
-                print(f'LOCAL IS NEWER - WHAT NOW?')
+                print(f'Local file is newer. Updating {remote_path}')
+                sync_local_file_to_remote(ftp, local_path, remote_path)
             else:
                 print(f'{local_path} is already up-to-date')
         else:
+            print(f'Local file doesn\'t exist. Creating {local_path}')
             # Local file doesn't exist, download from server
             sync_remote_file_to_local(ftp, remote_path, local_path, rmt)
-    except Exception as e:
-        print(f'Error syncing file {remote_path}: {e}')
-
-def sync_file_up(ftp, local_path, remote_path):
-    try:
-        if not os.path.exists(local_path):
-            raise FileNotFoundError(f'{local_path} does not exist. Sync it down, first')
-
-        # Get remote file's modified time
-        rmt = get_remote_modified_time(ftp, remote_path)
-        lmt = int(os.path.getmtime(local_path))
-
-        # Compare times and decide action
-        if lmt > rmt:
-            sync_local_file_to_remote(ftp, local_path, remote_path)
-        elif rmt > lmt:
-            print(f'Remote file is newer')
-        else:
-            print(f'{remote_path} is already up-to-date')
     except Exception as e:
         print(f'Error syncing file {remote_path}: {e}')
 
@@ -101,7 +80,10 @@ def sync_local_file_to_remote(ftp, local_path, remote_path):
     with open(local_path, 'rb') as f:
         ftp.storbinary(f'STOR {remote_path}', f)
 
-    # Can't update the time on the MCP2 ... it doesn't support the MFMT command
+    # Because we can't update the modified time on the MCP2 (no MFMT command support)...
+    # lets update the timestamp on our local file to that of the time on the MCP2
+    rmt = get_remote_modified_time(ftp, remote_path)
+    os.utime(local_path, (rmt, rmt))
 
 def sync_remote_file_to_local(ftp, remote_path, local_path, rmt):
     with open(local_path, 'wb') as f:
@@ -146,7 +128,6 @@ def read_creds():
 def read_args():
     parser = argparse.ArgumentParser(
         description='''ps2mcs is a command line tool that syncs PS2 memory card images between a MemCard PRO 2 and PC''')
-    parser.add_argument('-d', '--direction', choices=['up', 'down'], required=True, help="Direction of sync: 'up' (PC -> MCP2) or 'down' (PC <- MCP2)")
     parser.add_argument('-t', '--target', type=str, required=True, help='Target file to sync')
     parser.add_argument('-f', '--ftp_host', type=str, required=True, help='Address of the FTP server')
     parser.add_argument('-l', '--local', type=str, default='.', help='Local directory used as a source to sync memory card images to/from')
