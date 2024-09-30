@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import json
 import os
 import re
 
@@ -10,8 +11,9 @@ from pathlib import Path
 
 from mapping.flat import FlatMappingStrategy
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 MCPD2_PS2_ROOT = "files/PS2"
+SYNC_TARGETS = "targets.json"
 
 class MissingCredentialError(Exception):
     """ ps2mcs requires MCP2 FTP creds be provided by environment variables. Specifically, MCP2_USER to provide the username and MCP2_PWD to rpovide the password """
@@ -28,28 +30,41 @@ def main():
         args = read_args()
         local_root = Path(args.local).resolve()
 
-        target_path = Path(MCPD2_PS2_ROOT) / Path(args.target)
-        validate_remote_path(target_path)
-
         (uname, pwd) = read_creds()
         
         # Get file mapping strategy
         ms = create_mapping_strategy()
 
-        local_path = local_root / Path(ms.map_remote_to_local(target_path))
-        print(f'{target_path} ---> {local_path}')
-
+        vmcs_to_sync = get_vmcs_to_sync()
+        
         ftp = create_ftp_connection(args.ftp_host, uname, pwd)
 
-        # Check path to file locally exists, create if not
-        local_path.parent.mkdir(parents=True, exist_ok=True)
-    
-        sync_file(ftp, local_path, target_path)
+        for i in range(len(vmcs_to_sync)):
+            vmc_path = vmcs_to_sync[i]
+            local_path = local_root / Path(ms.map_remote_to_local(vmc_path))
+            print(f'[{i+1}/{len(vmcs_to_sync)}]> {vmc_path} <---> {local_path}')
 
+            # Check path to file locally exists, create if not
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+        
+            sync_file(ftp, local_path, vmc_path)
     except Exception as e:
         print(f'Failed to sync: {e}')
 
-    print(f'Done')
+def get_vmcs_to_sync():
+    with open(SYNC_TARGETS, 'r') as f:
+        config = json.load(f)
+
+    vmcs_to_sync = config.get('vmcs_to_sync', [])
+
+    vmc_paths = []
+
+    for vmc in vmcs_to_sync:
+        target_path = Path(MCPD2_PS2_ROOT) / Path(vmc)
+        validate_remote_path(target_path)
+        vmc_paths.append(target_path)
+
+    return vmc_paths
 
 def sync_file(ftp, local_path, remote_path):
     try:
@@ -62,16 +77,15 @@ def sync_file(ftp, local_path, remote_path):
 
             # Compare times and decide action
             if rmt > lmt:
-                print(f'Remote file is newer. Updating {local_path}')
+                print(f'Remote file is newer. Downloading {local_path}')
                 sync_remote_file_to_local(ftp, remote_path, local_path, rmt)
             elif lmt > rmt:
-                print(f'Local file is newer. Updating {remote_path}')
+                print(f'Local file is newer. Uploading {remote_path}')
                 sync_local_file_to_remote(ftp, local_path, remote_path)
             else:
-                print(f'{local_path} is already up-to-date')
+                print(f'Files are in sync')
         else:
-            print(f'Local file doesn\'t exist. Creating {local_path}')
-            # Local file doesn't exist, download from server
+            print(f'Local file doesn\'t exist. Downloading {local_path}')
             sync_remote_file_to_local(ftp, remote_path, local_path, rmt)
     except Exception as e:
         print(f'Error syncing file {remote_path}: {e}')
@@ -128,7 +142,6 @@ def read_creds():
 def read_args():
     parser = argparse.ArgumentParser(
         description='''ps2mcs is a command line tool that syncs PS2 memory card images between a MemCard PRO 2 and PC''')
-    parser.add_argument('-t', '--target', type=str, required=True, help='Target file to sync')
     parser.add_argument('-f', '--ftp_host', type=str, required=True, help='Address of the FTP server')
     parser.add_argument('-l', '--local', type=str, default='.', help='Local directory used as a source to sync memory card images to/from')
     parser.add_argument('-v', '--version', action='version', version=f'%(prog)s {VERSION}')
