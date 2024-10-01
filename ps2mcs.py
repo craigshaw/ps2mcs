@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+import time
 
 from datetime import datetime
 from ftplib import FTP
@@ -11,8 +12,9 @@ from pathlib import Path
 
 from mapping.flat import FlatMappingStrategy
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 MCPD2_PS2_ROOT = "files/PS2"
+# MCPD2_PS2_ROOT = "PS2"
 SYNC_TARGETS = "targets.json"
 
 class MissingCredentialError(Exception):
@@ -39,6 +41,8 @@ def main():
         
         ftp = create_ftp_connection(args.ftp_host, uname, pwd)
 
+        start_time = time.perf_counter()
+
         for i in range(len(vmcs_to_sync)):
             vmc_path = vmcs_to_sync[i]
             local_path = local_root / Path(ms.map_remote_to_local(vmc_path))
@@ -48,6 +52,10 @@ def main():
             local_path.parent.mkdir(parents=True, exist_ok=True)
         
             sync_file(ftp, local_path, vmc_path)
+
+        sync_time = (time.perf_counter() - start_time) * 1000
+
+        print(f'Finished in {sync_time:.2f} ms')
     except Exception as e:
         print(f'Failed to sync: {e}')
 
