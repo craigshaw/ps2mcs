@@ -166,3 +166,10 @@ cython_debug/
 
 # Test binary VMC images
 *.bin
+
+# VS Code
+.vscode
+
+# Scratchpad
+scratch.py
+notes.md
