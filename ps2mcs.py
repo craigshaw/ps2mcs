@@ -14,7 +14,7 @@ from progress import print_progress
 
 from mapping.flat import FlatMappingStrategy
 
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 MCPD2_PS2_ROOT = "files/PS2"
 # MCPD2_PS2_ROOT = "PS2"
 SYNC_TARGETS = "targets.json"
@@ -39,11 +39,13 @@ def main():
         # Get file mapping strategy
         ms = create_mapping_strategy()
 
-        vmcs_to_sync = get_vmcs_to_sync(ms, local_root)
-        
+        sync_targets = load_sync_targets()
+
+        vmcs_to_sync = map_file_paths(ms, local_root, sync_targets)
+
         start_time = time.perf_counter()
 
-        asyncio.run(sync_targets(args.ftp_host, uname, pwd, vmcs_to_sync))
+        asyncio.run(sync_all(args.ftp_host, uname, pwd, vmcs_to_sync))
 
         sync_time = (time.perf_counter() - start_time)
 
@@ -51,15 +53,16 @@ def main():
     except Exception as e:
         print(f'Failed to sync: {e}')
 
-def get_vmcs_to_sync(ms, local_root):
+def load_sync_targets():
     with open(SYNC_TARGETS, 'r') as f:
         config = json.load(f)
 
-    vmcs_to_sync = config.get('vmcs_to_sync', [])
+    return config.get('vmcs_to_sync', [])
 
-    vmc_paths = []
+def map_file_paths(ms, local_root, targets):
+    mapped_paths = []
 
-    for vmc in vmcs_to_sync:
+    for vmc in targets:
         # Get the target path
         target_path = Path(MCPD2_PS2_ROOT) / Path(vmc)
         validate_remote_path(target_path)
@@ -69,11 +72,11 @@ def get_vmcs_to_sync(ms, local_root):
         # Check path to file locally exists, create if not
         local_path.parent.mkdir(parents=True, exist_ok=True)
 
-        vmc_paths.append((target_path, local_path))
+        mapped_paths.append((target_path, local_path))
 
-    return vmc_paths
+    return mapped_paths
 
-async def sync_targets(ftp_host, user, pwd, targets):
+async def sync_all(ftp_host, user, pwd, targets):
     async with aioftp.Client.context(ftp_host, user=user, password=pwd) as client:
         for (lp, rp) in targets:
             await sync_file(client, rp, lp)
