@@ -1,7 +1,7 @@
 {
     "vmcs_to_sync": [
-        "SLUS-21274/SLUS-21274-1.mc2",
-        "SLES-54203/SLES-54203-1.mc2",
-        "SLPM-62703/SLPM-62703-1.mc2"
+        "SLUS-21274-1.mc2",
+        "SLES-54203-1.mc2",
+        "SLPM-62703-1.mc2"
     ]
 }

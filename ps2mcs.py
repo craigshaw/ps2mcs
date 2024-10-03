@@ -14,7 +14,7 @@ from progress import print_progress
 
 from mapping.flat import FlatMappingStrategy
 
-VERSION = "0.5.1"
+VERSION = "0.6.0"
 MCPD2_PS2_ROOT = "files/PS2"
 # MCPD2_PS2_ROOT = "PS2"
 SYNC_TARGETS = "targets.json"
@@ -64,8 +64,9 @@ def map_file_paths(ms, local_root, targets):
 
     for vmc in targets:
         # Get the target path
-        target_path = Path(MCPD2_PS2_ROOT) / Path(vmc)
-        validate_remote_path(target_path)
+        target_path = create_remote_path(vmc)
+        # target_path = Path(MCPD2_PS2_ROOT) / Path(vmc)
+        # validate_remote_path(target_path)
 
         # Map to a local path
         local_path = local_root / Path(ms.map_remote_to_local(target_path))
@@ -127,8 +128,6 @@ async def sync_local_file_to_remote_stream(ftp, local_path, remote_path):
                 await stream.write(block)
                 uploaded += len(block)
 
-                await asyncio.sleep(0.001)
-                
                 print_progress(uploaded, total_size)
 
     print()
@@ -166,12 +165,16 @@ async def get_remote_modified_time(ftp, filename):
     remote_time_str = response[1][0].strip()
     return ftp_time_to_unix_timestamp(remote_time_str)
 
-def validate_remote_path(target_path):
-    pattern = fr'^{MCPD2_PS2_ROOT}/([^/]+)/([^/]+)-([1-8])\.mc2$'
+def create_remote_path(target_file):
+    pattern = r"([^/]+)-([1-8])\.mc2$"
 
-    match = re.match(pattern, str(target_path))
+    match = re.match(pattern, str(target_file))
 
-    if match is None:
+    if match:
+        filename = match.group(1)  # The filename part (SLUS-21274)
+
+        return Path(MCPD2_PS2_ROOT) / Path(f'{filename}/{target_file}')
+    else:
         raise InvalidTargetFormatError()
 
 def ftp_time_to_unix_timestamp(ftp_time_str):
