@@ -10,10 +10,11 @@ import time
 
 from datetime import datetime
 from pathlib import Path
+from progress import print_progress
 
 from mapping.flat import FlatMappingStrategy
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 MCPD2_PS2_ROOT = "files/PS2"
 # MCPD2_PS2_ROOT = "PS2"
 SYNC_TARGETS = "targets.json"
@@ -44,9 +45,9 @@ def main():
 
         asyncio.run(sync_targets(args.ftp_host, uname, pwd, vmcs_to_sync))
 
-        sync_time = (time.perf_counter() - start_time) * 1000
+        sync_time = (time.perf_counter() - start_time)
 
-        print(f'Finished in {sync_time:.2f} ms')
+        print(f'Finished in {sync_time:.3f}s')
     except Exception as e:
         print(f'Failed to sync: {e}')
 
@@ -89,15 +90,15 @@ async def sync_file(ftp, local_path, remote_path):
             # Compare times and decide action
             if rmt > lmt:
                 print(f'Remote file is newer. Downloading {local_path}')
-                await sync_remote_file_to_local(ftp, remote_path, local_path, rmt)
+                await sync_remote_file_to_local_stream(ftp, remote_path, local_path, rmt)
             elif lmt > rmt:
                 print(f'Local file is newer. Uploading {remote_path}')
-                await sync_local_file_to_remote(ftp, local_path, remote_path)
+                await sync_local_file_to_remote_stream(ftp, local_path, remote_path)
             else:
                 print(f'Files are in sync')
         else:
             print(f'Local file doesn\'t exist. Downloading {local_path}')
-            await sync_remote_file_to_local(ftp, remote_path, local_path, rmt)
+            await sync_remote_file_to_local_stream(ftp, remote_path, local_path, rmt)
     except Exception as e:
         print(f'Error syncing file {remote_path}: {e}')
 
@@ -109,8 +110,50 @@ async def sync_local_file_to_remote(ftp, local_path, remote_path):
     rmt = await get_remote_modified_time(ftp, remote_path)
     os.utime(local_path, (rmt, rmt))
 
+async def sync_local_file_to_remote_stream(ftp, local_path, remote_path):
+    total_size = os.path.getsize(local_path)
+    uploaded = 0
+    
+    with open(local_path, "rb") as local_file:
+        async with ftp.upload_stream(remote_path) as stream:
+            while True:
+                block = local_file.read(1024) 
+                if not block:
+                    break 
+                
+                await stream.write(block)
+                uploaded += len(block)
+
+                await asyncio.sleep(0.001)
+                
+                print_progress(uploaded, total_size)
+
+    print()
+
+    # Because we can't update the modified time on the MCP2 (no MFMT command support)...
+    # lets update the timestamp on our local file to that of the time on the MCP2
+    rmt = await get_remote_modified_time(ftp, remote_path)
+    os.utime(local_path, (rmt, rmt))
+
 async def sync_remote_file_to_local(ftp, remote_path, local_path, rmt):
     await ftp.download(remote_path, local_path, write_into=True)
+
+    # Update local timestamp so it reflects the remote time
+    os.utime(local_path, (rmt, rmt))
+
+async def sync_remote_file_to_local_stream(ftp, remote_path, local_path, rmt):
+    total_size = int((await ftp.stat(remote_path))["size"]) 
+    downloaded = 0
+    
+    with open(local_path, "wb") as local_file:
+        async with ftp.download_stream(remote_path) as stream:
+            async for block in stream.iter_by_block():
+                local_file.write(block)
+                downloaded += len(block)
+                
+                print_progress(downloaded, total_size)
+
+    print()
 
     # Update local timestamp so it reflects the remote time
     os.utime(local_path, (rmt, rmt))
