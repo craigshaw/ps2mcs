@@ -14,9 +14,8 @@ from progress import print_progress
 
 from mapping.flat import FlatMappingStrategy
 
-VERSION = "0.6.0"
-MCPD2_PS2_ROOT = "files/PS2"
-# MCPD2_PS2_ROOT = "PS2"
+VERSION = "0.6.1"
+MCPD2_PS2_ROOT = "PS2"
 SYNC_TARGETS = "targets.json"
 
 class MissingCredentialError(Exception):
@@ -63,10 +62,8 @@ def map_file_paths(ms, local_root, targets):
     mapped_paths = []
 
     for vmc in targets:
-        # Get the target path
+        # Generate the remote path
         target_path = create_remote_path(vmc)
-        # target_path = Path(MCPD2_PS2_ROOT) / Path(vmc)
-        # validate_remote_path(target_path)
 
         # Map to a local path
         local_path = local_root / Path(ms.map_remote_to_local(target_path))
@@ -78,9 +75,12 @@ def map_file_paths(ms, local_root, targets):
     return mapped_paths
 
 async def sync_all(ftp_host, user, pwd, targets):
-    async with aioftp.Client.context(ftp_host, user=user, password=pwd) as client:
-        for (lp, rp) in targets:
-            await sync_file(client, rp, lp)
+    try:
+        async with aioftp.Client.context(ftp_host, user=user, password=pwd) as client:
+            for (lp, rp) in targets:
+                await sync_file(client, rp, lp)
+    except asyncio.CancelledError as ce:
+        print()
 
 async def sync_file(ftp, local_path, remote_path):
     try:
@@ -129,6 +129,8 @@ async def sync_local_file_to_remote_stream(ftp, local_path, remote_path):
                 uploaded += len(block)
 
                 print_progress(uploaded, total_size)
+
+                await asyncio.sleep(1)
 
     print()
 
