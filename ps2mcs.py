@@ -1,24 +1,31 @@
 #!/usr/bin/env python3
 
-import aioftp
 import argparse
 import asyncio
 import json
 import os
 import time
 
+from enum import Enum
 from datetime import datetime
 from pathlib import Path
-from progress import print_progress
 
+import aioftp
+
+from progress import print_progress
 from mapping.flat import FlatMappingStrategy
 from sync_target import SyncTarget
 
-VERSION = "0.7.0"
+VERSION = "0.8.0"
 TARGET_CONFIG = "targets.json"
 
+class SyncOperation(Enum):
+    UPLOAD = "upload"
+    DOWNLOAD = "download"
+    NO_OP = "no_op"
+
 class MissingCredentialError(Exception):
-    """ ps2mcs requires MCP2 FTP creds be provided by environment variables. Specifically, MCP2_USER to provide the username and MCP2_PWD to rpovide the password """
+    """ ps2mcs requires MCP2 FTP creds be provided by environment variables. Specifically, MCP2_USER to provide the username and MCP2_PWD to provide the password """
     def __init__(self, message='MCP2 credentials missing. MCP2_USER and MCP2_PWD need to be provided as environment variables'):
         super().__init__(message)
 
@@ -58,12 +65,20 @@ def load_filenames_to_sync():
 async def sync_all(ftp_host, user, pwd, sync_targets):
     try:
         async with aioftp.Client.context(ftp_host, user=user, password=pwd) as client:
-            for target in sync_targets:
-                await sync_file(client, target)
+            for i, target in enumerate(sync_targets):
+                await sync_file(client, target, i, len(sync_targets))
     except asyncio.CancelledError as ce:
         print()
 
-async def sync_file(ftp, target):
+def prettify_nix_time(nix_time):
+    # 'dd/mm/yyyy hh:mm:ss'
+    return datetime.fromtimestamp(nix_time).strftime('%d/%m/%Y %H:%M:%S')
+
+async def sync_file(ftp, target, idx, total):
+    operation = SyncOperation.NO_OP
+    lmt = 0
+    rmt = 0
+
     try:
         # Get remote file's modified time
         rmt = await get_remote_modified_time(ftp, target.remote_path)
@@ -74,18 +89,35 @@ async def sync_file(ftp, target):
 
             # Compare times and decide action
             if rmt > lmt:
-                print(f'Remote file is newer. Downloading {target.local_path}')
-                await sync_remote_file_to_local_stream(ftp, target.remote_path, target.local_path, rmt)
+                operation = SyncOperation.DOWNLOAD
             elif lmt > rmt:
-                print(f'Local file is newer. Uploading {target.remote_path}')
-                await sync_local_file_to_remote_stream(ftp, target.local_path, target.remote_path)
-            else:
-                print(f'Files are in sync')
+                operation = SyncOperation.UPLOAD
         else:
-            print(f'Local file doesn\'t exist. Downloading {target.local_path}')
+            operation = SyncOperation.DOWNLOAD
+
+        print_sync_summary(target, idx, total, lmt, rmt, operation)
+
+        if operation == SyncOperation.DOWNLOAD:
             await sync_remote_file_to_local_stream(ftp, target.remote_path, target.local_path, rmt)
+        elif operation == SyncOperation.UPLOAD:
+            await sync_local_file_to_remote_stream(ftp, target.local_path, target.remote_path)
+
     except Exception as e:
         print(f'Error syncing file {target.remote_path}: {e}')
+
+def print_sync_summary(target, idx, total, lmt, rmt, operation):
+    status = f'[{idx+1}/{total}]: {prettify_nix_time(lmt)} {target.local_path.name} <--> {target.remote_path.name} {prettify_nix_time(rmt)} | '
+    if operation == SyncOperation.DOWNLOAD:
+        if lmt == 0:
+            status += f'No local file. Downloading...'
+        else:
+            status += f'Remote is newer. Downloading...'
+    elif operation == SyncOperation.UPLOAD:
+        status += f'Local is newer. Uploading...'
+    else:
+        status += f'Files are in sync'
+
+    print(status)
 
 async def sync_local_file_to_remote(ftp, local_path, remote_path):
     await ftp.upload(local_path, remote_path, write_into=True)
@@ -124,7 +156,7 @@ async def sync_remote_file_to_local(ftp, remote_path, local_path, rmt):
     os.utime(local_path, (rmt, rmt))
 
 async def sync_remote_file_to_local_stream(ftp, remote_path, local_path, rmt):
-    total_size = int((await ftp.stat(remote_path))["size"]) 
+    total_size = int((await ftp.stat(remote_path))['size']) 
     downloaded = 0
     
     with open(local_path, "wb") as local_file:
@@ -141,7 +173,7 @@ async def sync_remote_file_to_local_stream(ftp, remote_path, local_path, rmt):
     os.utime(local_path, (rmt, rmt))
 
 async def get_remote_modified_time(ftp, filename):
-    response = await ftp.command(f"MDTM {filename}", "213") # '213 YYYYMMDDHHMMSS'
+    response = await ftp.command(f'MDTM {filename}', '213') # '213 YYYYMMDDHHMMSS'
     remote_time_str = response[1][0].strip()
     return ftp_time_to_unix_timestamp(remote_time_str)
 
