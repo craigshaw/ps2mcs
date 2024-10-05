@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-MCPD2_PS2_ROOT = "files/PS2"
+MCPD2_PS2_ROOT = "PS2"
 
 class InvalidTargetFormatError(Exception):
     """ ps2mcs requires targets for sync to follow this convention <CardName>/<CardName>-<Channel>.mc2 """

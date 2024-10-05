@@ -16,7 +16,7 @@ from progress import print_progress
 from mapping.flat import FlatMappingStrategy
 from sync_target import SyncTarget
 
-VERSION = "0.8.0"
+VERSION = "0.8.1"
 TARGET_CONFIG = "targets.json"
 
 class SyncOperation(Enum):
@@ -156,7 +156,9 @@ async def sync_remote_file_to_local(ftp, remote_path, local_path, rmt):
     os.utime(local_path, (rmt, rmt))
 
 async def sync_remote_file_to_local_stream(ftp, remote_path, local_path, rmt):
-    total_size = int((await ftp.stat(remote_path))['size']) 
+    response = await ftp.command(f'size {remote_path}', '213')
+    total_size = int(response[1][0].strip())
+    # total_size = int((await ftp.stat(remote_path))['size']) 
     downloaded = 0
     
     with open(local_path, "wb") as local_file:
