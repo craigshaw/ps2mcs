@@ -16,7 +16,7 @@ from progress import print_progress
 from mapping.flat import FlatMappingStrategy
 from sync_target import SyncTarget
 
-VERSION = "0.8.1"
+VERSION = "0.8.2"
 TARGET_CONFIG = "targets.json"
 
 class SyncOperation(Enum):
@@ -31,21 +31,13 @@ class MissingCredentialError(Exception):
 
 def main():
     try:
-        args = read_args()
-        local_sync_path_root = Path(args.local).resolve()
+        config = configure()
 
-        (uname, pwd) = read_creds()
-        
-        # Get file mapping strategy
-        ms = create_mapping_strategy()
-
-        files_to_sync = load_filenames_to_sync()
-
-        sync_targets = create_sync_targets(files_to_sync, local_sync_path_root, ms)
+        sync_targets = create_sync_targets(config['sync_files'], config['local_dir'], create_mapping_strategy())
 
         start_time = time.perf_counter()
 
-        asyncio.run(sync_all(args.ftp_host, uname, pwd, sync_targets))
+        asyncio.run(sync_all(config['ftp_host'], config['uname'], config['pwd'], sync_targets))
 
         sync_time = (time.perf_counter() - start_time)
 
@@ -56,7 +48,7 @@ def main():
 def create_sync_targets(files_to_sync, sync_root, ms):
     return [SyncTarget(f, sync_root, ms) for f in files_to_sync]
 
-def load_filenames_to_sync():
+def read_sync_config():
     with open(TARGET_CONFIG, 'r') as f:
         config = json.load(f)
 
@@ -98,9 +90,9 @@ async def sync_file(ftp, target, idx, total):
         print_sync_summary(target, idx, total, lmt, rmt, operation)
 
         if operation == SyncOperation.DOWNLOAD:
-            await sync_remote_file_to_local_stream(ftp, target.remote_path, target.local_path, rmt)
+            await download_file(ftp, target.remote_path, target.local_path, rmt)
         elif operation == SyncOperation.UPLOAD:
-            await sync_local_file_to_remote_stream(ftp, target.local_path, target.remote_path)
+            await upload_file(ftp, target.local_path, target.remote_path)
 
     except Exception as e:
         print(f'Error syncing file {target.remote_path}: {e}')
@@ -119,15 +111,7 @@ def print_sync_summary(target, idx, total, lmt, rmt, operation):
 
     print(status)
 
-async def sync_local_file_to_remote(ftp, local_path, remote_path):
-    await ftp.upload(local_path, remote_path, write_into=True)
-
-    # Because we can't update the modified time on the MCP2 (no MFMT command support)...
-    # lets update the timestamp on our local file to that of the time on the MCP2
-    rmt = await get_remote_modified_time(ftp, remote_path)
-    os.utime(local_path, (rmt, rmt))
-
-async def sync_local_file_to_remote_stream(ftp, local_path, remote_path):
+async def upload_file(ftp, local_path, remote_path):
     total_size = os.path.getsize(local_path)
     uploaded = 0
     
@@ -149,13 +133,7 @@ async def sync_local_file_to_remote_stream(ftp, local_path, remote_path):
     rmt = await get_remote_modified_time(ftp, remote_path)
     os.utime(local_path, (rmt, rmt))
 
-async def sync_remote_file_to_local(ftp, remote_path, local_path, rmt):
-    await ftp.download(remote_path, local_path, write_into=True)
-
-    # Update local timestamp so it reflects the remote time
-    os.utime(local_path, (rmt, rmt))
-
-async def sync_remote_file_to_local_stream(ftp, remote_path, local_path, rmt):
+async def download_file(ftp, remote_path, local_path, rmt):
     response = await ftp.command(f'size {remote_path}', '213')
     total_size = int(response[1][0].strip())
     # total_size = int((await ftp.stat(remote_path))['size']) 
@@ -193,6 +171,18 @@ def read_creds():
         raise MissingCredentialError()
     
     return (uname, pwd)
+
+def configure():
+    config = {}
+    args = read_args()
+
+    config['local_dir'] = Path(args.local).resolve()
+    config['ftp_host'] = args.ftp_host
+    config['sync_files'] = read_sync_config()
+
+    (config['uname'], config['pwd']) = read_creds()
+
+    return config
 
 def read_args():
     parser = argparse.ArgumentParser(
