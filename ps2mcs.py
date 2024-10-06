@@ -98,7 +98,8 @@ async def sync_file(ftp, target, idx, total):
         print(f'Error syncing file {target.remote_path}: {e}')
 
 def print_sync_summary(target, idx, total, lmt, rmt, operation):
-    status = f'[{idx+1}/{total}]: {prettify_nix_time(lmt)} {target.local_path.name} <--> {target.remote_path.name} {prettify_nix_time(rmt)} | '
+    ct = datetime.now().strftime("%d/%m/%y %H:%M:%S:%f")[:-3]
+    status = f'{ct}: [{idx+1}/{total}] {prettify_nix_time(lmt)} {target.local_path.name} <--> {target.remote_path.name} {prettify_nix_time(rmt)} | '
     if operation == SyncOperation.DOWNLOAD:
         if lmt == 0:
             status += f'No local file. Downloading...'
