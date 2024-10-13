@@ -42,5 +42,9 @@ optional arguments:
 To sync the files in targets.json between local directory, `~/PS2/memcards`, and a MemCard PRO 2 at `192.168.36.42`
 ```
 $ ./ps2mcs.py -l ~/PS2/memcards -f 192.168.36.42
-...
+13/10/24 10:26:20:504: [1/2] 06/10/2024 19:53:10 SLUS-21274-1.bin <--> SLUS-21274-1.mc2 13/10/2024 10:25:18 | Remote is newer. Downloading...
+███████████████████████████████████████████████████████████████████████████ 100%
+13/10/24 10:26:20:522: [2/2] 13/10/2024 10:25:26 SLPM-62703-1.bin <--> SLPM-62703-1.mc2 06/10/2024 19:54:01 | Local is newer. Uploading...
+███████████████████████████████████████████████████████████████████████████ 100%
+Finished in 0.082s
 ```
