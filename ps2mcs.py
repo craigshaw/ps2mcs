@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 import time
+import traceback
 
 from enum import Enum
 from datetime import datetime
@@ -16,7 +17,7 @@ from progress import print_progress
 from mapping.flat import FlatMappingStrategy
 from sync_target import SyncTarget
 
-VERSION = "0.8.2"
+VERSION = "1.0.0"
 TARGET_CONFIG = "targets.json"
 
 class SyncOperation(Enum):
@@ -44,6 +45,7 @@ def main():
         print(f'Finished in {sync_time:.3f}s')
     except Exception as e:
         print(f'Failed to sync: {e}')
+        traceback.print_exc()
 
 def create_sync_targets(files_to_sync, sync_root, ms):
     return [SyncTarget(f, sync_root, ms) for f in files_to_sync]
@@ -59,7 +61,7 @@ async def sync_all(ftp_host, user, pwd, sync_targets):
         async with aioftp.Client.context(ftp_host, user=user, password=pwd) as client:
             for i, target in enumerate(sync_targets):
                 await sync_file(client, target, i, len(sync_targets))
-    except asyncio.CancelledError as ce:
+    except asyncio.CancelledError:
         print()
 
 def prettify_nix_time(nix_time):
@@ -96,6 +98,7 @@ async def sync_file(ftp, target, idx, total):
 
     except Exception as e:
         print(f'Error syncing file {target.remote_path}: {e}')
+        traceback.print_exc()
 
 def print_sync_summary(target, idx, total, lmt, rmt, operation):
     ct = datetime.now().strftime("%d/%m/%y %H:%M:%S:%f")[:-3]

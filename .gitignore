@@ -167,6 +167,9 @@ log.txt
 # Shell script
 *.sh
 
+# Bash file
+*.bat
+
 # Test binary VMC images
 *.bin
 
