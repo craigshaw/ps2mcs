@@ -17,7 +17,7 @@ from progress import print_progress
 from mapping.flat import FlatMappingStrategy
 from sync_target import SyncTarget
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 TARGET_CONFIG = "targets.json"
 
 class SyncOperation(Enum):
@@ -30,7 +30,10 @@ class MissingCredentialError(Exception):
     def __init__(self, message='MCP2 credentials missing. MCP2_USER and MCP2_PWD need to be provided as environment variables'):
         super().__init__(message)
 
+config = {}
+
 def main():
+    global config
     try:
         config = configure()
 
@@ -101,8 +104,7 @@ async def sync_file(ftp, target, idx, total):
         traceback.print_exc()
 
 def print_sync_summary(target, idx, total, lmt, rmt, operation):
-    ct = datetime.now().strftime("%d/%m/%y %H:%M:%S:%f")[:-3]
-    status = f'{ct}: [{idx+1}/{total}] {prettify_nix_time(lmt)} {target.local_path.name} <--> {target.remote_path.name} {prettify_nix_time(rmt)} | '
+    status = f'{current_time()}: [{idx+1}/{total}] {prettify_nix_time(lmt)} {target.local_path.name} <--> {target.remote_path.name} {prettify_nix_time(rmt)} | '
     if operation == SyncOperation.DOWNLOAD:
         if lmt == 0:
             status += f'No local file. Downloading...'
@@ -129,8 +131,11 @@ async def upload_file(ftp, local_path, remote_path):
                 await stream.write(block)
                 uploaded += len(block)
 
-                print_progress(uploaded, total_size)
-    print()
+                if not config['basic']:
+                    print_progress(uploaded, total_size)
+
+    summary = '' if not config['basic'] else f'{current_time()}: Uploaded {total_size} bytes to {remote_path}'
+    print(summary)
 
     # Because we can't update the modified time on the MCP2 (no MFMT command support)...
     # lets update the timestamp on our local file to that of the time on the MCP2
@@ -140,7 +145,6 @@ async def upload_file(ftp, local_path, remote_path):
 async def download_file(ftp, remote_path, local_path, rmt):
     response = await ftp.command(f'size {remote_path}', '213')
     total_size = int(response[1][0].strip())
-    # total_size = int((await ftp.stat(remote_path))['size']) 
     downloaded = 0
     
     with open(local_path, "wb") as local_file:
@@ -148,10 +152,12 @@ async def download_file(ftp, remote_path, local_path, rmt):
             async for block in stream.iter_by_block():
                 local_file.write(block)
                 downloaded += len(block)
-                
-                print_progress(downloaded, total_size)
 
-    print()
+                if not config['basic']:
+                    print_progress(downloaded, total_size)
+
+    summary = '' if not config['basic'] else f'{current_time()}: Downloaded {total_size} bytes to {local_path}'
+    print(summary)
 
     # Update local timestamp so it reflects the remote time
     os.utime(local_path, (rmt, rmt))
@@ -160,6 +166,9 @@ async def get_remote_modified_time(ftp, filename):
     response = await ftp.command(f'MDTM {filename}', '213') # '213 YYYYMMDDHHMMSS'
     remote_time_str = response[1][0].strip()
     return ftp_time_to_unix_timestamp(remote_time_str)
+
+def current_time():
+    return datetime.now().strftime("%d/%m/%y %H:%M:%S:%f")[:-3]
 
 def ftp_time_to_unix_timestamp(ftp_time_str):
     return int(datetime.strptime(ftp_time_str, '%Y%m%d%H%M%S').timestamp())
@@ -183,6 +192,7 @@ def configure():
     config['local_dir'] = Path(args.local).resolve()
     config['ftp_host'] = args.ftp_host
     config['sync_files'] = read_sync_config()
+    config['basic'] = args.basic
 
     (config['uname'], config['pwd']) = read_creds()
 
@@ -193,6 +203,7 @@ def read_args():
         description='''ps2mcs is a command line tool that syncs PS2 memory card images between a MemCard PRO 2 and PC''')
     parser.add_argument('-f', '--ftp_host', type=str, required=True, help='Address of the FTP server')
     parser.add_argument('-l', '--local', type=str, default='.', help='Local directory used as a source to sync memory card images to/from')
+    parser.add_argument('-b', '--basic', type=bool, default=False, help='Basic UI mode. Outputs simple summary on sync complete only')
     parser.add_argument('-v', '--version', action='version', version=f'%(prog)s {VERSION}')
     return parser.parse_args()
 

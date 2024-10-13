@@ -25,16 +25,18 @@ Add the filenames of the memory card images you want to sync to the targets.json
 ```
 #### Usage
 ```bash
-usage: ps2mcs.py [-h] -f FTP_HOST [-l LOCAL] [-v]
+usage: ps2mcs.py [-h] -f FTP_HOST [-l LOCAL] [-b BASIC] [-v]
 
 ps2mcs is a command line tool that syncs PS2 memory card images between a MemCard PRO 2 and PC
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   -f FTP_HOST, --ftp_host FTP_HOST
                         Address of the FTP server
   -l LOCAL, --local LOCAL
-                        Local directory used as a source to sync memory card images to/from   
+                        Local directory used as a source to sync memory card images to/from
+  -b BASIC, --basic BASIC
+                        Basic UI mode. Outputs simple summary on sync complete only
   -v, --version         show program's version number and exit
   ```
 ### Examples
