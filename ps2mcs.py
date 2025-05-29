@@ -10,6 +10,7 @@ import traceback
 from enum import Enum
 from datetime import datetime
 from pathlib import Path
+from dotenv import load_dotenv
 
 import aioftp
 
@@ -177,6 +178,8 @@ def create_mapping_strategy():
     return FlatMappingStrategy()
 
 def read_creds():
+    load_dotenv()
+
     uname = os.getenv('MCP2_USER')
     pwd = os.getenv('MCP2_PWD')
 
