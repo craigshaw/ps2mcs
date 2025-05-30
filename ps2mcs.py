@@ -18,7 +18,7 @@ from progress import print_progress
 from mapping.flat import FlatMappingStrategy
 from sync_target import SyncTarget
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 TARGET_CONFIG = "targets.json"
 
 class SyncOperation(Enum):
@@ -206,7 +206,7 @@ def read_args():
         description='''ps2mcs is a command line tool that syncs PS2 memory card images between a MemCard PRO 2 and PC''')
     parser.add_argument('-f', '--ftp_host', type=str, required=True, help='Address of the FTP server')
     parser.add_argument('-l', '--local', type=str, default='.', help='Local directory used as a source to sync memory card images to/from')
-    parser.add_argument('-b', '--basic', type=bool, default=False, help='Basic UI mode. Outputs simple summary on sync complete only')
+    parser.add_argument('-b', '--basic', action='store_true', help='Basic UI mode. Outputs simple summary on sync complete only')
     parser.add_argument('-v', '--version', action='version', version=f'%(prog)s {VERSION}')
     return parser.parse_args()
 

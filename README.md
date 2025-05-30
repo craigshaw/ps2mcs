@@ -13,6 +13,11 @@ Make sure that the following two environment variables are set with the credenti
 MCP2_USER
 MCP2_PWD
 ```
+You can do this the usual way or by creating a `.env` file in the application root and adding the two  values as follows,
+```.env
+MCP2_USER=<user>
+MCP2_PWD=<password>
+```
 #### Configuration
 Add the filenames of the memory card images you want to sync to the targets.json config file. The filenames need to be the filenames as they exist on the MCP2,
 ```json
@@ -35,8 +40,7 @@ options:
                         Address of the FTP server
   -l LOCAL, --local LOCAL
                         Local directory used as a source to sync memory card images to/from
-  -b BASIC, --basic BASIC
-                        Basic UI mode. Outputs simple summary on sync complete only
+  -b, --basic           Basic UI mode. Outputs simple summary on sync complete only
   -v, --version         show program's version number and exit
   ```
 ### Examples
