@@ -6,11 +6,13 @@ import json
 import os
 import time
 import traceback
+from datetime import timedelta
 
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from dotenv import load_dotenv
+from zoneinfo import ZoneInfo
 
 import aioftp
 
@@ -172,7 +174,10 @@ def current_time():
     return datetime.now().strftime("%d/%m/%y %H:%M:%S:%f")[:-3]
 
 def ftp_time_to_unix_timestamp(ftp_time_str):
-    return int(datetime.strptime(ftp_time_str, '%Y%m%d%H%M%S').timestamp())
+	# update to use time.tzname[time.daylight] instead of hardcoding New York
+    NEW_YORK = ZoneInfo("America/New_York")
+    dt = datetime.strptime(ftp_time_str, '%Y%m%d%H%M%S').replace(tzinfo=timezone.utc)
+    return int(dt.astimezone(NEW_YORK).timestamp())
 
 def create_mapping_strategy():
     return FlatMappingStrategy()
