@@ -6,13 +6,11 @@ import json
 import os
 import time
 import traceback
-from datetime import timedelta
 
 from enum import Enum
 from datetime import datetime, timezone
 from pathlib import Path
 from dotenv import load_dotenv
-from zoneinfo import ZoneInfo
 
 import aioftp
 
@@ -71,8 +69,8 @@ async def sync_all(ftp_host, user, pwd, sync_targets):
         print()
 
 def prettify_nix_time(nix_time):
-    # 'dd/mm/yyyy hh:mm:ss'
-    return datetime.fromtimestamp(nix_time).strftime('%d/%m/%Y %H:%M:%S')
+    # 'dd/mm/yyyy hh:mm:ss TZ'
+    return datetime.fromtimestamp(nix_time).astimezone().strftime('%d/%m/%Y %H:%M:%S %Z')
 
 async def sync_file(ftp, target, idx, total):
     operation = SyncOperation.NO_OP
@@ -174,10 +172,9 @@ def current_time():
     return datetime.now().strftime("%d/%m/%y %H:%M:%S:%f")[:-3]
 
 def ftp_time_to_unix_timestamp(ftp_time_str):
-	# update to use time.tzname[time.daylight] instead of hardcoding New York
-    NEW_YORK = ZoneInfo("America/New_York")
-    dt = datetime.strptime(ftp_time_str, '%Y%m%d%H%M%S').replace(tzinfo=timezone.utc)
-    return int(dt.astimezone(NEW_YORK).timestamp())
+    dt = datetime.strptime(ftp_time_str, '%Y%m%d%H%M%S')
+    dt = dt.replace(tzinfo=timezone.utc)  # mark as UTC
+    return int(dt.timestamp())
 
 def create_mapping_strategy():
     return FlatMappingStrategy()
