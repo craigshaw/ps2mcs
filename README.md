@@ -54,3 +54,22 @@ $ ./ps2mcs.py -l ~/PS2/memcards -f 192.168.36.42
 ███████████████████████████████████████████████████████████████████████████ 100%
 Finished in 0.082s
 ```
+### Steam Deck Configuration
+Getting this to work on Steam Deck requires some extra configuring.
+
+1. From the Github, download the .zip of the code.
+2. Unzip on the Steam Deck in a folder of your choosing.
+3. Configure as mentioned above - add the environment variables, update the targets.json to include the saves you want to sync. 
+4. In Konsole, run "python -m ensurepip"
+5. Go to ~/.bashrc, and add following to the end:
+ ```
+if [ -d "$HOME/.local/bin" ]; then
+  PATH="$HOME/.local/bin:$PATH"
+fi
+ ```
+6. Back in Konsole, run "source ~/.bashrc" to reload the file with the lines you've added.
+7. You will need to install remaining dependency packages. Run the following two commands from Konsole:
+	a. pip3 install dotenv
+	b. pip3 install aioftp
+8. You are now ready to run the command (as seen in the Examples section above).
+
