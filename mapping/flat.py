@@ -16,30 +16,21 @@ class FlatMappingStrategy():
     
     def map_to_local(self, filename, local_root):
         filepath = Path(filename)
-        ps1pattern = r"([^/]+)-([1-8])\.mcd$"
-        ps1match = re.match(ps1pattern, str(filename))
-
-        if ps1match:
-        # Flatten to <mem card dir>_<mem card name>.mcd
-            return f'{local_root}/{filepath.stem}.mcd'
-        else:
-        # Flatten to <mem card dir>_<mem card name>.bin
-            return f'{local_root}/{filepath.stem}.bin'
+        if filepath.suffix.lower() == '.mc2':
+            filepath = filepath.with_suffix('.bin')
+        return Path(local_root) / filepath.name
 
     def map_to_remote(self, filename):
-        ps2pattern = r"([^/]+)-([1-8])\.mc2$"
-        ps2match = re.match(ps2pattern, str(filename))
+        filepath = Path(filename)
+        patterns = {
+            ".mc2": MCPD2_PS2_ROOT,
+            ".mcd": MCPD2_PS1_ROOT,
+        }
 
-        ps1pattern = r"([^/]+)-([1-8])\.mcd$"
-        ps1match = re.match(ps1pattern, str(filename))
-
-        if ps2match:
-            gameid = ps2match.group(1)  # The gameid part (SLUS-21274)
-
-            return f'{MCPD2_PS2_ROOT}/{gameid}/{filename}'
-        elif ps1match:
-            gameid = ps1match.group(1)  # The gameid part (SLUS-21274)
-
-            return f'{MCPD2_PS1_ROOT}/{gameid}/{filename}'
-        else:
-            raise InvalidTargetFormatError()
+        for suffix, root in patterns.items():
+            match = re.match(rf"([^/]+)-([1-8])\{suffix}$", filepath.name, re.IGNORECASE)
+            if match:
+                gameid = match.group(1)
+                return Path(root) / gameid / filepath.name
+        
+        raise InvalidTargetFormatError()

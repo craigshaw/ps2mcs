@@ -18,7 +18,7 @@ from progress import print_progress
 from mapping.flat import FlatMappingStrategy
 from sync_target import SyncTarget
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 TARGET_CONFIG = "targets.json"
 
 class SyncOperation(Enum):
