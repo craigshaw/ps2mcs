@@ -15,10 +15,10 @@ from dotenv import load_dotenv
 import aioftp
 
 from progress import print_progress
-from mapping.flat import FlatMappingStrategy
+from mapping.flat import FlatMappingStrategy, InvalidTargetFormatError
 from sync_target import SyncTarget
 
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 TARGET_CONFIG = "targets.json"
 
 class SyncOperation(Enum):
@@ -52,7 +52,15 @@ def main():
         traceback.print_exc()
 
 def create_sync_targets(files_to_sync, sync_root, ms):
-    return [SyncTarget(f, sync_root, ms) for f in files_to_sync]
+    targets = []
+
+    for f in files_to_sync:
+        try:
+            targets.append(SyncTarget(f, sync_root, ms))
+        except InvalidTargetFormatError as e:
+            print(f'Failed to sync {f}: {e}')
+
+    return targets
 
 def read_sync_config():
     with open(TARGET_CONFIG, 'r') as f:
@@ -68,9 +76,9 @@ async def sync_all(ftp_host, user, pwd, sync_targets):
     except asyncio.CancelledError:
         print()
 
-def prettify_nix_time(nix_time):
+def format_timestamp(ts):
     # 'dd/mm/yyyy hh:mm:ss TZ'
-    return datetime.fromtimestamp(nix_time).astimezone().strftime('%d/%m/%Y %H:%M:%S %Z')
+    return datetime.fromtimestamp(ts).astimezone().strftime('%d/%m/%Y %H:%M:%S %Z')
 
 async def sync_file(ftp, target, idx, total):
     operation = SyncOperation.NO_OP
@@ -105,7 +113,7 @@ async def sync_file(ftp, target, idx, total):
         traceback.print_exc()
 
 def print_sync_summary(target, idx, total, lmt, rmt, operation):
-    status = f'{current_time()}: [{idx+1}/{total}] {prettify_nix_time(lmt)} {target.local_path.name} <--> {target.remote_path.name} {prettify_nix_time(rmt)} | '
+    status = f'{current_time()}: [{idx+1}/{total}] {format_timestamp(lmt)} {target.local_path.name} <--> {target.remote_path.name} {format_timestamp(rmt)} | '
     if operation == SyncOperation.DOWNLOAD:
         if lmt == 0:
             status += f'No local file. Downloading...'
