@@ -40,6 +40,8 @@ options:
                         Address of the FTP server
   -l LOCAL, --local LOCAL
                         Local directory used as a source to sync memory card images to/from
+  -t TARGETS, --targets TARGETS
+                        Sync targets configuration file (default: targets.json)
   -b, --basic           Basic UI mode. Outputs simple summary on sync complete only
   -v, --version         show program's version number and exit
   ```

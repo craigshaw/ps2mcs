@@ -18,8 +18,7 @@ from progress import print_progress
 from mapping.flat import FlatMappingStrategy, InvalidTargetFormatError
 from sync_target import SyncTarget
 
-VERSION = "1.0.4"
-TARGET_CONFIG = "targets.json"
+VERSION = "1.0.5"
 
 class SyncOperation(Enum):
     UPLOAD = "upload"
@@ -62,8 +61,8 @@ def create_sync_targets(files_to_sync, sync_root, ms):
 
     return targets
 
-def read_sync_config():
-    with open(TARGET_CONFIG, 'r') as f:
+def read_sync_config(sync_file):
+    with open(sync_file, 'r') as f:
         config = json.load(f)
 
     return config.get('targets', [])
@@ -204,7 +203,7 @@ def configure():
 
     config['local_dir'] = Path(args.local).resolve()
     config['ftp_host'] = args.ftp_host
-    config['sync_files'] = read_sync_config()
+    config['sync_files'] = read_sync_config(args.targets)
     config['basic'] = args.basic
 
     (config['uname'], config['pwd']) = read_creds()
@@ -216,6 +215,7 @@ def read_args():
         description='''ps2mcs is a command line tool that syncs PS2 memory card images between a MemCard PRO 2 and PC''')
     parser.add_argument('-f', '--ftp_host', type=str, required=True, help='Address of the FTP server')
     parser.add_argument('-l', '--local', type=str, default='.', help='Local directory used as a source to sync memory card images to/from')
+    parser.add_argument('-t', '--targets', type=str, default='targets.json', help='Sync targets configuration file (default: targets.json)')
     parser.add_argument('-b', '--basic', action='store_true', help='Basic UI mode. Outputs simple summary on sync complete only')
     parser.add_argument('-v', '--version', action='version', version=f'%(prog)s {VERSION}')
     return parser.parse_args()
