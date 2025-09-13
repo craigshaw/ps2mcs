@@ -1,0 +1,12 @@
+# Ignore all Python cache folders recursively
+**/__pycache__/
+**/*.py[cod]
+
+*.sh
+.env
+.git
+.gitignore
+.DS_Store
+.vscode
+.venv/
+notes.md
