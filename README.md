@@ -74,26 +74,26 @@ fi
 	b. pip3 install aioftp
 8. You are now ready to run the command (as seen in the Examples section above).
 
-## Docker Usage
+### Docker
 You can also run `ps2mcs` easily using Docker. This is useful if you want to avoid installing Python and dependencies directly on your system.
 
-### Build the Docker Image
+#### Build the Docker Image
 From the project root, build the Docker image:
 ```bash
 docker build -t ps2mcs .
 ```
 
-### Usage
+#### Usage
 Needs a volume mount to the directory containg the memory cards to be synced and environment variables for the MCP2 FTP credentials,
 
 ```bash
 $ docker run --rm 
-  -v /home/craigshaw/Documents/PS2/memcards:/memcards 
-  --env-file /home/craigshaw/Projects/ps2mcs/.env 
+  -v /PS2/memcards:/memcards 
+  --env-file /PS2/ps2mcs/.env 
   ps2mcs:latest -f <FTP_HOST> -l /memcards -t /memcards/targets.json
 ```
 
-### Example
+#### Example
 ```bash
 $ docker run --rm 
   -v /PS2/memcards:/memcards 
