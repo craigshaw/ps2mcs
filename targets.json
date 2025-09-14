@@ -1,7 +1,6 @@
 {
     "targets": [
         "SLUS-21274-1.mc2",
-        "SLPM-62703-1.mc2",
-        "SLES-03321-1.mcd"
+        "SLPM-99999-1.mc2"
     ]
 }

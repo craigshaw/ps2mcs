@@ -22,6 +22,7 @@ VERSION = "1.0.5"
 
 class SyncOperation(Enum):
     UPLOAD = "upload"
+    UPLOAD_NOT_SUPPORTED = "upload_not_supported"
     DOWNLOAD = "download"
     NO_OP = "no_op"
 
@@ -85,20 +86,24 @@ async def sync_file(ftp, target, idx, total):
     rmt = 0
 
     try:
-        # Get remote file's modified time
-        rmt = await get_remote_modified_time(ftp, target.remote_path)
+        # Does the file exist on the remote server?
+        if await ftp.exists(target.remote_path):
+            # Get remote file's modified time
+            rmt = await get_remote_modified_time(ftp, target.remote_path)
 
         # Check if local file exists
         if os.path.exists(target.local_path):
             lmt = int(os.path.getmtime(target.local_path))
 
-            # Compare times and decide action
+        if lmt == 0 and rmt > 0:
+            operation = SyncOperation.DOWNLOAD
+        elif rmt == 0 and lmt > 0:
+            operation = SyncOperation.UPLOAD_NOT_SUPPORTED # FTP server on MCP2 does not support creating new files
+        elif lmt > 0 and rmt > 0:
             if rmt > lmt:
                 operation = SyncOperation.DOWNLOAD
             elif lmt > rmt:
                 operation = SyncOperation.UPLOAD
-        else:
-            operation = SyncOperation.DOWNLOAD
 
         print_sync_summary(target, idx, total, lmt, rmt, operation)
 
@@ -120,6 +125,8 @@ def print_sync_summary(target, idx, total, lmt, rmt, operation):
             status += f'Remote is newer. Downloading...'
     elif operation == SyncOperation.UPLOAD:
         status += f'Local is newer. Uploading...'
+    elif operation == SyncOperation.UPLOAD_NOT_SUPPORTED:
+        status += f'No remote file. Uploading not supported by MCP2 FTP server'
     else:
         status += f'Files are in sync'
 
