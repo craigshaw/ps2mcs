@@ -4,7 +4,7 @@ ps2mcs is a command line tool that syncs PS2 memory card images between an [8Bit
 ### Notes
 Created to me help keep memory card images in sync between those on my [8BitMods MemCard PRO2](https://8bitmods.com/memcard-pro2-for-ps2-and-ps1-smoke-black/) and those on my PC that I use with [PCSX2](https://pcsx2.net/). Works in a one time fashion where one execution will sync the target files (configured in targets.json) across both devices and then quit. Can easily be integrated into a higher level cron or scheduled task if you want a more continuous sync.
 
-Leverages the FTP capability of the MemCard PRO2 and relies on the system time of your PS2 being accurate. Provide the credentials in a couple of environment vairables, `MCP2_USER` and `MCP2_PWD`
+Leverages the FTP capability of the MemCard PRO2 and relies on the system time of your PS2 being accurate. FTP credentials need to be supplied by the environment variables, `MCP2_USER` and `MCP2_PWD`
 
 ### Usage Instructions
 #### Environment Variables
@@ -46,7 +46,6 @@ options:
   -v, --version         show program's version number and exit
   ```
 ### Examples
-
 To sync the files in targets.json between local directory, `~/PS2/memcards`, and a MemCard PRO 2 at `192.168.36.42`
 ```
 $ ./ps2mcs.py -l ~/PS2/memcards -f 192.168.36.42
@@ -75,3 +74,30 @@ fi
 	b. pip3 install aioftp
 8. You are now ready to run the command (as seen in the Examples section above).
 
+## Docker Usage
+You can also run `ps2mcs` easily using Docker. This is useful if you want to avoid installing Python and dependencies directly on your system.
+
+### Build the Docker Image
+From the project root, build the Docker image:
+```bash
+docker build -t ps2mcs .
+```
+
+### Usage
+Needs a volume mount to the directory containg the memory cards to be synced and environment variables for the MCP2 FTP credentials,
+
+```bash
+$ docker run --rm 
+  -v /home/craigshaw/Documents/PS2/memcards:/memcards 
+  --env-file /home/craigshaw/Projects/ps2mcs/.env 
+  ps2mcs:latest -f <FTP_HOST> -l /memcards -t /memcards/targets.json
+```
+
+### Example
+```bash
+$ docker run --rm 
+  -v /PS2/memcards:/memcards 
+  --env-file /PS2/ps2mcs/.env 
+  ps2mcs:latest -f 192.168.86.30 -l /memcards -t /memcards/targets.json
+```
+This will sync the memory card images defined in `/PS2/memcards/targets.json` between the equivalent images on the MCP2 at `192.168.86.30` and on the local filesystem at `/PS2/memcards`
